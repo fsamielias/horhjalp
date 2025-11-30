@@ -2,523 +2,414 @@
 <html lang="sv">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hörhjälp Mobil</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hörselassistenten</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: radial-gradient(circle at top, #0f172a, #020617);
-            color: #e2e8f0;
-            overflow: hidden;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
+        /* Anpassad slider-stil */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
         }
-
-        /* Glassmorphism containers */
-        .glass-panel {
-            background: rgba(30, 41, 59, 0.6);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .visualizer-container {
-            position: relative;
-            height: 16vh; /* Anpassad höjd för mobil */
-            width: 100%;
-            background: rgba(15, 23, 42, 0.8);
-            border-radius: 1rem;
-            overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
-            margin-bottom: 1rem;
-        }
-        canvas { display: block; width: 100%; height: 100%; }
         
-        /* Volume Bar */
-        .volume-bar-container {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 99px;
-            overflow: hidden;
-            margin-bottom: 1rem;
-        }
-        .volume-bar-fill {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #22c55e, #06b6d4);
-            transition: width 0.05s linear;
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 0 2px rgba(0,0,0,0.5);
         }
 
-        /* Slider - Mobilvänlig storlek */
-        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; padding: 10px 0; }
-        input[type=range]:focus { outline: none; }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 32px; width: 32px; /* Större för tummen */
-            border-radius: 50%; 
-            background: #ffffff; 
-            cursor: pointer;
-            margin-top: -14px; 
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
-            border: 2px solid #38bdf8;
-        }
         input[type=range]::-webkit-slider-runnable-track {
-            width: 100%; height: 4px; cursor: pointer;
-            background: rgba(255, 255, 255, 0.2); 
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #4b5563;
             border-radius: 2px;
         }
-        
-        select {
-            background-color: rgba(15, 23, 42, 0.95);
-            color: #f8fafc;
-            padding: 14px; /* Större träffyta */
-            border-radius: 12px;
-            width: 100%;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 1rem;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-            background-position: right 1rem center;
-            background-repeat: no-repeat;
-            background-size: 1.5em 1.5em;
-        }
 
-        /* Knapp-effekter */
-        .btn-glow {
-            position: relative;
-            background: linear-gradient(135deg, #334155, #1e293b);
-            border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-        }
-        
-        .active-pulse {
-            animation: pulse-glow 2s infinite;
-            background: linear-gradient(135deg, #0ea5e9, #22c55e); 
-            border: none;
-        }
-        
-        @keyframes pulse-glow {
-            0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); }
-            70% { box-shadow: 0 0 0 20px rgba(14, 165, 233, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
-        }
-        
-        .refresh-btn {
-            background: rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 8px 12px;
-            color: #94a3b8;
-            transition: all 0.2s;
-        }
-        .refresh-btn:active {
-            background: rgba(255,255,255,0.2);
-            transform: scale(0.95);
+        .vu-meter-bar {
+            transition: height 0.1s ease;
         }
     </style>
 </head>
-<body class="flex flex-col h-screen p-5 max-w-md mx-auto">
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans flex flex-col">
 
-    <header class="flex justify-between items-center py-4">
-        <div>
-            <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-emerald-400">Hörhjälp</h1>
-            <p class="text-xs text-slate-400 font-medium tracking-wide">MOBILANPASSAD</p>
-        </div>
-        <div id="statusIndicator" class="px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-slate-800/80 text-slate-400 border border-slate-700/50 backdrop-blur-sm">
-            OFFLINE
+    <!-- Header -->
+    <header class="bg-slate-800 p-4 shadow-lg border-b border-slate-700">
+        <div class="max-w-md mx-auto flex items-center justify-between">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i data-lucide="ear" class="text-blue-400"></i>
+                Hörselassistenten
+            </h1>
+            <div id="statusIndicator" class="px-3 py-1 rounded-full text-xs font-semibold bg-red-900 text-red-200 animate-pulse">
+                OFFLINE
+            </div>
         </div>
     </header>
 
-    <main class="flex-grow flex flex-col justify-center space-y-4">
+    <!-- Main Content -->
+    <main class="flex-grow p-4 overflow-y-auto">
+        <div class="max-w-md mx-auto space-y-6">
 
-        <!-- SSL Warning -->
-        <div id="sslWarning" class="hidden bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-sm text-red-200 backdrop-blur-sm">
-            <div class="flex items-center gap-2 mb-1 text-red-400 font-bold"><i class="fa-solid fa-lock"></i> Säkerhetsvarning</div>
-            Sidan körs inte säkert (HTTPS). Mikrofonen kommer troligen blockeras.
-        </div>
-
-        <!-- Visualizer Area -->
-        <div>
-            <div class="visualizer-container">
-                <canvas id="visualizerCanvas"></canvas>
-            </div>
-            <div class="volume-bar-container">
-                <div id="volumeBar" class="volume-bar-fill"></div>
-            </div>
-        </div>
-
-        <!-- Controls (Glass Panel) -->
-        <div class="glass-panel p-5 rounded-3xl space-y-5">
-            
-            <!-- Mic & Speaker Selection -->
-            <div id="deviceControls" class="opacity-50 pointer-events-none transition-opacity duration-300">
-                
-                <!-- Input -->
-                <div class="mb-4">
-                    <div class="flex justify-between items-center mb-1.5 ml-1">
-                        <label class="text-[10px] font-bold text-sky-200/50 uppercase tracking-wider">Mikrofon</label>
-                        <button id="refreshBtn" class="text-[10px] text-sky-400 font-bold uppercase tracking-wider flex items-center gap-1 active:opacity-50">
-                            <i class="fa-solid fa-rotate"></i> Uppdatera
-                        </button>
-                    </div>
-                    <select id="micSelect"><option value="">Starta först...</option></select>
-                </div>
-                
-                <!-- Output -->
-                <div>
-                    <label class="text-[10px] font-bold text-sky-200/50 uppercase tracking-wider block mb-1.5 ml-1">Ljud ut (Hörlurar)</label>
-                    <select id="outputSelect"><option value="">Systemstandard</option></select>
-                </div>
-                
-                <p id="outputNote" class="text-[10px] text-amber-300/70 hidden mt-2 text-center bg-amber-900/20 p-2 rounded-lg border border-amber-500/20">
-                    <i class="fa-solid fa-circle-info mr-1"></i> Om ljudet kommer fel: Ändra i mobilens egna ljudinställningar.
+            <!-- Start/Stop Section -->
+            <div class="bg-slate-800 rounded-xl p-6 shadow-md border border-slate-700 text-center">
+                <p class="text-slate-400 text-sm mb-4">
+                    <i data-lucide="alert-triangle" class="inline w-4 h-4 mb-1 text-yellow-500"></i>
+                    Använd alltid hörlurar för att undvika rundgång.
                 </p>
+                <button id="toggleBtn" class="w-full py-4 rounded-lg font-bold text-lg transition-all shadow-lg flex items-center justify-center gap-3 bg-green-600 hover:bg-green-500 text-white">
+                    <i data-lucide="power"></i>
+                    Starta Ljudet
+                </button>
             </div>
 
-            <!-- Volume Control -->
-            <div class="pt-2 border-t border-white/5">
-                <div class="flex justify-between mb-3 items-center">
-                    <label class="text-xs font-bold text-slate-300 uppercase tracking-wide">Volymboost</label>
-                    <span id="gainValue" class="text-sm font-mono font-bold text-sky-400 bg-sky-950/50 px-2 py-0.5 rounded border border-sky-800/50">1.0x</span>
+            <!-- Visualizer -->
+            <div class="bg-slate-800 rounded-xl p-4 shadow-md border border-slate-700 relative overflow-hidden h-32 flex items-end justify-between gap-1" id="visualizer-container">
+                <!-- Bars will be injected here by JS -->
+                <div class="absolute inset-0 flex items-center justify-center text-slate-500/30 font-bold text-2xl z-0 pointer-events-none">
+                    VISUALISERARE
                 </div>
-                <input type="range" id="gainSlider" min="0" max="5" step="0.1" value="1">
             </div>
+
+            <!-- Input Selection -->
+            <div class="bg-slate-800 rounded-xl p-5 shadow-md border border-slate-700">
+                <label class="block text-sm font-medium text-slate-400 mb-2 flex items-center gap-2">
+                    <i data-lucide="mic"></i> Välj Mikrofon (Input)
+                </label>
+                <select id="micSelect" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="" disabled selected>Laddar mikrofoner...</option>
+                </select>
+            </div>
+
+            <!-- Controls -->
+            <div class="bg-slate-800 rounded-xl p-5 shadow-md border border-slate-700 space-y-6 opacity-50 pointer-events-none transition-opacity" id="controlsArea">
+                
+                <!-- Gain / Volume Boost -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-medium text-blue-300">Volymförstärkning</label>
+                        <span id="gainVal" class="text-xs font-mono bg-slate-700 px-2 rounded">1.0x</span>
+                    </div>
+                    <input type="range" id="gainSlider" min="0" max="5" step="0.1" value="1" class="w-full">
+                    <p class="text-xs text-slate-500 mt-1">Öka om mikrofonen är långt bort.</p>
+                </div>
+
+                <!-- Pan / Balance -->
+                <div class="p-4 bg-slate-900 rounded-lg border border-slate-700">
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-medium text-green-300 flex items-center gap-1">
+                            <i data-lucide="move-horizontal" class="w-4 h-4"></i> Balans
+                        </label>
+                        <span id="panVal" class="text-xs font-mono bg-slate-700 px-2 rounded">Mitten</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-xs text-slate-400 font-bold">
+                        <span>V (Bra öra)</span>
+                        <input type="range" id="panSlider" min="-1" max="1" step="0.1" value="0" class="w-full">
+                        <span>H</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2 text-center">Dra mot Vänster för att flytta ljudet till ditt friska öra.</p>
+                </div>
+
+                <!-- EQ Section -->
+                <div class="space-y-4 pt-2 border-t border-slate-700">
+                    <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider">Bullerreducering & Tal</h3>
+                    
+                    <!-- Low / Bass -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Lågbas (Buller)</span>
+                            <span id="lowVal">0 dB</span>
+                        </div>
+                        <input type="range" id="lowSlider" min="-20" max="10" step="1" value="0" class="w-full">
+                    </div>
+
+                    <!-- Mid / Speech -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-yellow-400 font-bold">Röstfokus</span>
+                            <span id="midVal">0 dB</span>
+                        </div>
+                        <input type="range" id="midSlider" min="-10" max="20" step="1" value="0" class="w-full">
+                    </div>
+
+                    <!-- High / Clarity -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Diskant (Skärpa)</span>
+                            <span id="highVal">0 dB</span>
+                        </div>
+                        <input type="range" id="highSlider" min="-10" max="15" step="1" value="0" class="w-full">
+                    </div>
+                </div>
+            </div>
+
         </div>
-
-        <!-- Action Button -->
-        <div class="flex flex-col items-center justify-center pt-2 space-y-3">
-            <button id="toggleBtn" class="btn-glow w-20 h-20 rounded-full text-slate-300 font-bold text-lg flex flex-col items-center justify-center transition-all duration-300 transform active:scale-95">
-                <i class="fa-solid fa-power-off text-2xl mb-1"></i>
-            </button>
-            <p id="instructionText" class="text-xs text-center text-slate-500 font-medium">
-                Tryck för att starta
-            </p>
-        </div>
-
-        <!-- Error Log -->
-        <div id="errorMsg" class="hidden text-red-200 text-center text-xs p-3 bg-red-950/80 rounded-xl border border-red-500/30 backdrop-blur-md break-words font-mono shadow-lg mb-4"></div>
-
     </main>
 
     <script>
-        // --- Core Variables ---
-        let audioContext = null;
-        let mediaStream = null;
-        let sourceNode = null;
-        let gainNode = null;
-        let analyserNode = null;
+        // Init Lucide icons
+        lucide.createIcons();
+
+        // Audio Context & Nodes
+        let audioCtx;
+        let streamSource;
+        let gainNode;
+        let pannerNode;
+        let compressorNode;
+        let lowEQ, midEQ, highEQ;
+        let analyser;
         let isRunning = false;
-        let wakeLock = null;
-        let animationId = null;
-        let hasPermissions = false;
+        let currentStream = null;
+        let animationId;
 
-        // --- UI Elements ---
+        // Elements
         const toggleBtn = document.getElementById('toggleBtn');
-        const instructionText = document.getElementById('instructionText');
         const statusIndicator = document.getElementById('statusIndicator');
-        const gainSlider = document.getElementById('gainSlider');
-        const gainValue = document.getElementById('gainValue');
+        const controlsArea = document.getElementById('controlsArea');
         const micSelect = document.getElementById('micSelect');
-        const outputSelect = document.getElementById('outputSelect');
-        const deviceControls = document.getElementById('deviceControls');
-        const outputNote = document.getElementById('outputNote');
-        const volumeBar = document.getElementById('volumeBar');
-        const errorMsg = document.getElementById('errorMsg');
-        const canvas = document.getElementById('visualizerCanvas');
-        const ctx = canvas.getContext('2d');
-        const refreshBtn = document.getElementById('refreshBtn');
+        const visualizerContainer = document.getElementById('visualizer-container');
 
-        // --- Check HTTPS ---
-        if (!window.isSecureContext && window.location.hostname !== 'localhost') {
-            document.getElementById('sslWarning').classList.remove('hidden');
+        // Setup Visualizer Bars
+        const barCount = 20;
+        const bars = [];
+        for (let i = 0; i < barCount; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'bg-blue-500 w-full mx-0.5 rounded-t-sm opacity-80';
+            bar.style.height = '5%';
+            visualizerContainer.appendChild(bar);
+            bars.push(bar);
         }
 
-        // --- Listeners ---
-        toggleBtn.addEventListener('click', handleToggle);
-        refreshBtn.addEventListener('click', () => {
-            refreshBtn.classList.add('animate-spin');
-            setTimeout(() => refreshBtn.classList.remove('animate-spin'), 500);
-            refreshDeviceList();
-        });
-        
-        gainSlider.addEventListener('input', (e) => {
-            const val = parseFloat(e.target.value);
-            gainValue.textContent = val.toFixed(1) + 'x';
-            if (gainNode) {
-                gainNode.gain.setTargetAtTime(val, audioContext.currentTime, 0.1);
-            }
-        });
-
-        micSelect.addEventListener('change', async () => {
-            if (isRunning) {
-                await stopAudio();
-                await startAudio(micSelect.value);
-            }
-        });
-
-        outputSelect.addEventListener('change', async () => {
-            if (audioContext && outputSelect.value) {
-                try {
-                    if (typeof audioContext.setSinkId === 'function') {
-                        await audioContext.setSinkId(outputSelect.value);
-                    } else {
-                        outputNote.classList.remove('hidden');
-                    }
-                } catch (err) {
-                    console.error('Output error:', err);
-                    outputNote.classList.remove('hidden');
-                }
-            }
-        });
-
-        // Detect new devices (like plugging in USB-C adapter)
-        navigator.mediaDevices.addEventListener('devicechange', () => {
-            console.log("Device change detected");
-            refreshDeviceList();
-            // Optional: Show a small toast notification could go here
-        });
-
-        // --- Main Logic ---
-
-        async function handleToggle() {
-            if (isRunning) {
-                await stopAudio();
-            } else {
-                const deviceId = hasPermissions ? micSelect.value : undefined;
-                await startAudio(deviceId);
-            }
-        }
-
-        async function startAudio(specificDeviceId) {
-            errorMsg.classList.add('hidden');
-            errorMsg.innerText = "";
-            outputNote.classList.add('hidden');
-            
-            try {
-                // 1. Create AudioContext
+        // Initialize Audio Context on user interaction
+        async function initAudio() {
+            if (!audioCtx) {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!audioContext || audioContext.state === 'closed') {
-                    audioContext = new AudioContext({ 
-                        latencyHint: 'interactive',
-                        sampleRate: 44100 // Tvinga standard om möjligt för att undvika USB-C sync issues
-                    });
-                }
-                
-                if (audioContext.state === 'suspended') {
-                    await audioContext.resume();
-                }
+                audioCtx = new AudioContext();
+            }
 
-                // 2. Constraints - Simplified for robustness with adapters
-                const constraints = {
-                    audio: {
-                        echoCancellation: false, // VIKTIGT: False ger ofta renare ljud med externa micar
-                        noiseSuppression: true,
-                        autoGainControl: false
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+        }
+
+        async function getMicrophones() {
+            try {
+                // Request permission first to get labels
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioInputs = devices.filter(device => device.kind === 'audioinput');
+                
+                micSelect.innerHTML = '';
+                audioInputs.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Mikrofon ${micSelect.length + 1}`;
+                    micSelect.appendChild(option);
+                });
+
+                // Add event listener for change
+                micSelect.onchange = async (e) => {
+                    if (isRunning) {
+                        stopAudio();
+                        await startAudio(e.target.value);
                     }
                 };
 
-                if (specificDeviceId) {
-                    constraints.audio.deviceId = { exact: specificDeviceId };
-                }
+            } catch (err) {
+                console.error("Kunde inte hämta mikrofoner:", err);
+                micSelect.innerHTML = '<option>Åtkomst nekad eller fel</option>';
+            }
+        }
 
-                // 3. Get Stream
-                statusIndicator.innerText = "ANSLUTER...";
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        async function startAudio(deviceId = null) {
+            try {
+                await initAudio();
+
+                const constraints = {
+                    audio: {
+                        deviceId: deviceId ? { exact: deviceId } : undefined,
+                        echoCancellation: false, // Turn off for cleaner raw audio usually
+                        noiseSuppression: false, // We will handle EQ manually, but sometimes system NS is good.
+                        autoGainControl: false,  // We want manual gain control
+                        latency: 0
+                    }
+                };
+
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 
-                hasPermissions = true;
-                deviceControls.classList.remove('opacity-50', 'pointer-events-none');
+                // Create Nodes
+                streamSource = audioCtx.createMediaStreamSource(currentStream);
+                gainNode = audioCtx.createGain();
+                pannerNode = audioCtx.createStereoPanner();
+                analyser = audioCtx.createAnalyser();
+                compressorNode = audioCtx.createDynamicsCompressor(); // Limiter to protect ears
+                
+                // EQ Nodes (BiquadFilter)
+                lowEQ = audioCtx.createBiquadFilter();
+                lowEQ.type = 'lowshelf';
+                lowEQ.frequency.value = 250; // Bass cutoff
 
-                // 4. Setup Nodes
-                sourceNode = audioContext.createMediaStreamSource(mediaStream);
-                gainNode = audioContext.createGain();
-                analyserNode = audioContext.createAnalyser();
+                midEQ = audioCtx.createBiquadFilter();
+                midEQ.type = 'peaking';
+                midEQ.Q.value = 1;
+                midEQ.frequency.value = 1500; // Human speech center
 
-                gainNode.gain.value = parseFloat(gainSlider.value);
-                analyserNode.fftSize = 256;
+                highEQ = audioCtx.createBiquadFilter();
+                highEQ.type = 'highshelf';
+                highEQ.frequency.value = 5000; // Clarity/Treble
 
-                sourceNode.connect(gainNode);
-                gainNode.connect(analyserNode);
-                analyserNode.connect(audioContext.destination);
+                // Apply initial UI values
+                updateAudioParams();
 
-                // 5. Update UI & Start features
+                // Connect the chain: 
+                // Source -> Compressor (Safety) -> LowEQ -> MidEQ -> HighEQ -> Gain -> Panner -> Analyser -> Destination
+                streamSource
+                    .connect(compressorNode)
+                    .connect(lowEQ)
+                    .connect(midEQ)
+                    .connect(highEQ)
+                    .connect(gainNode)
+                    .connect(pannerNode)
+                    .connect(analyser)
+                    .connect(audioCtx.destination);
+
+                // Setup Analyser for visualizer
+                analyser.fftSize = 64;
+                drawVisualizer();
+
+                // UI Updates
                 isRunning = true;
-                updateUI(true);
-                startVisualizer();
-                requestWakeLock();
-                await refreshDeviceList();
-
-                // 6. Try to auto-set output if possible
-                if (outputSelect.value && typeof audioContext.setSinkId === 'function') {
-                    audioContext.setSinkId(outputSelect.value).catch(() => {});
-                }
+                updateUIState(true);
 
             } catch (err) {
-                console.error(err);
-                let msg = "Fel: " + err.message;
-                if (err.name === 'NotAllowedError') msg = "Åtkomst nekad. Kontrollera inställningar.";
-                if (err.name === 'NotFoundError') msg = "Ingen mikrofon hittades.";
-                if (err.name === 'NotReadableError') msg = "Kunde inte läsa enheten. Prova att koppla ur/in adaptern.";
-                
-                errorMsg.innerText = msg;
-                errorMsg.classList.remove('hidden');
+                console.error("Fel vid start av ljud:", err);
+                alert("Kunde inte starta mikrofonen. Kontrollera behörigheter.");
                 stopAudio();
             }
         }
 
-        async function stopAudio() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
+        function stopAudio() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
             }
-            if (sourceNode) {
-                sourceNode.disconnect();
-                sourceNode = null;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
             }
-            
-            if (wakeLock) {
-                wakeLock.release();
-                wakeLock = null;
+            // Disconnect nodes if they exist
+            if (streamSource) {
+                streamSource.disconnect();
             }
-
-            cancelAnimationFrame(animationId);
-            
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            volumeBar.style.width = '0%';
-            
             isRunning = false;
-            updateUI(false);
+            updateUIState(false);
+            
+            // Reset visualizer
+            bars.forEach(bar => bar.style.height = '5%');
         }
 
-        // --- Visualizer ---
-        function startVisualizer() {
-            const bufferLength = analyserNode.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-
-            const draw = () => {
-                if (!isRunning) return;
-                animationId = requestAnimationFrame(draw);
-
-                analyserNode.getByteTimeDomainData(dataArray);
-
-                // Volume Bar Logic
-                let sum = 0;
-                for(let i = 0; i < bufferLength; i++) {
-                    const x = (dataArray[i] - 128);
-                    sum += x * x;
-                }
-                const rms = Math.sqrt(sum / bufferLength); 
-                const volumePercent = Math.min(100, (rms / 50) * 100); 
-                volumeBar.style.width = volumePercent + '%';
-
-                // Waveform Logic
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.lineWidth = 3;
-                
-                // Cool gradient line
-                const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
-                gradient.addColorStop(0, "#22c55e");
-                gradient.addColorStop(0.5, "#0ea5e9");
-                gradient.addColorStop(1, "#22c55e");
-                ctx.strokeStyle = gradient;
-                
-                ctx.beginPath();
-                const sliceWidth = canvas.width * 1.0 / bufferLength;
-                let x = 0;
-
-                for (let i = 0; i < bufferLength; i++) {
-                    const v = dataArray[i] / 128.0;
-                    const y = v * canvas.height / 2;
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                    x += sliceWidth;
-                }
-                ctx.lineTo(canvas.width, canvas.height / 2);
-                ctx.stroke();
-            };
-            draw();
-        }
-
-        // --- Device List ---
-        async function refreshDeviceList() {
-            try {
-                // Permissions check implicitly handled by flow
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                
-                // Inputs
-                const inputs = devices.filter(d => d.kind === 'audioinput');
-                const currentMic = micSelect.value;
-                micSelect.innerHTML = ''; 
-
-                if (inputs.length === 0) {
-                    micSelect.add(new Option('Inga enheter funna', ''));
-                } else {
-                    inputs.forEach((device, i) => {
-                        // Better labeling for dongles
-                        let label = device.label || `Enhet ${i+1}`;
-                        if (label.toLowerCase().includes('headset') || label.toLowerCase().includes('usb')) {
-                            label = "🔌 " + label; // Markera externa enheter
-                        }
-                        micSelect.add(new Option(label, device.deviceId));
-                    });
-                }
-                if (currentMic && [...micSelect.options].some(o => o.value === currentMic)) {
-                    micSelect.value = currentMic;
-                }
-
-                // Outputs
-                const outputs = devices.filter(d => d.kind === 'audiooutput');
-                const currentOut = outputSelect.value;
-                outputSelect.innerHTML = '';
-
-                if (outputs.length === 0) {
-                     outputSelect.add(new Option('Systemstandard', ''));
-                     if (audioContext && typeof audioContext.setSinkId !== 'function') {
-                         // outputNote.classList.remove('hidden'); // Keep UI clean unless error
-                     }
-                } else {
-                    outputSelect.add(new Option('Systemstandard', ''));
-                    outputs.forEach((device, i) => {
-                        outputSelect.add(new Option(device.label || `Högtalare ${i+1}`, device.deviceId));
-                    });
-                }
-                
-                if (currentOut && [...outputSelect.options].some(o => o.value === currentOut)) {
-                    outputSelect.value = currentOut;
-                }
-
-            } catch (e) {
-                console.warn("Device list error", e);
-            }
-        }
-
-        // --- UI Helpers ---
-        function updateUI(active) {
+        function updateUIState(active) {
             if (active) {
-                toggleBtn.classList.add('active-pulse');
-                toggleBtn.classList.remove('btn-glow');
-                toggleBtn.innerHTML = '<i class="fa-solid fa-stop text-2xl mb-1 text-white"></i>';
-                instructionText.innerText = "Tryck för att stoppa";
-                
+                toggleBtn.innerHTML = '<i data-lucide="square" class="fill-current"></i> Stoppa Ljudet';
+                toggleBtn.classList.remove('bg-green-600', 'hover:bg-green-500');
+                toggleBtn.classList.add('bg-red-600', 'hover:bg-red-500');
                 statusIndicator.innerText = "LIVE";
-                statusIndicator.className = "px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 backdrop-blur-sm";
+                statusIndicator.classList.remove('bg-red-900', 'text-red-200');
+                statusIndicator.classList.add('bg-green-900', 'text-green-200');
+                controlsArea.classList.remove('opacity-50', 'pointer-events-none');
+                lucide.createIcons();
             } else {
-                toggleBtn.classList.remove('active-pulse');
-                toggleBtn.classList.add('btn-glow');
-                toggleBtn.innerHTML = '<i class="fa-solid fa-power-off text-2xl mb-1 text-white"></i>';
-                instructionText.innerText = "Tryck för att starta";
-                
+                toggleBtn.innerHTML = '<i data-lucide="power"></i> Starta Ljudet';
+                toggleBtn.classList.remove('bg-red-600', 'hover:bg-red-500');
+                toggleBtn.classList.add('bg-green-600', 'hover:bg-green-500');
                 statusIndicator.innerText = "OFFLINE";
-                statusIndicator.className = "px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-slate-800/80 text-slate-400 border border-slate-700/50 backdrop-blur-sm";
+                statusIndicator.classList.remove('bg-green-900', 'text-green-200');
+                statusIndicator.classList.add('bg-red-900', 'text-red-200');
+                controlsArea.classList.add('opacity-50', 'pointer-events-none');
+                lucide.createIcons();
             }
         }
 
-        async function requestWakeLock() {
-            try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {}
+        function drawVisualizer() {
+            if (!isRunning) return;
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            // Map data to bars
+            // We only take a portion of the buffer because speech isn't usually in the super high freqs
+            const step = Math.floor(bufferLength / barCount);
+
+            for (let i = 0; i < barCount; i++) {
+                const value = dataArray[i * step];
+                const percent = (value / 255) * 100;
+                
+                bars[i].style.height = Math.max(5, percent) + '%';
+                
+                // Change color based on intensity
+                if (percent > 80) {
+                    bars[i].className = 'w-full mx-0.5 rounded-t-sm transition-all bg-red-500';
+                } else if (percent > 50) {
+                    bars[i].className = 'w-full mx-0.5 rounded-t-sm transition-all bg-yellow-500';
+                } else {
+                    bars[i].className = 'w-full mx-0.5 rounded-t-sm transition-all bg-blue-500';
+                }
+            }
+
+            animationId = requestAnimationFrame(drawVisualizer);
         }
+
+        function updateAudioParams() {
+            if (!isRunning) return;
+
+            // Gain
+            const gainVal = parseFloat(document.getElementById('gainSlider').value);
+            gainNode.gain.value = gainVal;
+            document.getElementById('gainVal').innerText = gainVal.toFixed(1) + 'x';
+
+            // Panner
+            const panVal = parseFloat(document.getElementById('panSlider').value);
+            pannerNode.pan.value = panVal;
+            let panText = "Mitten";
+            if (panVal < -0.1) panText = "Vänster";
+            if (panVal > 0.1) panText = "Höger";
+            document.getElementById('panVal').innerText = panText;
+
+            // EQ
+            const lowVal = parseFloat(document.getElementById('lowSlider').value);
+            lowEQ.gain.value = lowVal;
+            document.getElementById('lowVal').innerText = (lowVal > 0 ? '+' : '') + lowVal + ' dB';
+
+            const midVal = parseFloat(document.getElementById('midSlider').value);
+            midEQ.gain.value = midVal;
+            document.getElementById('midVal').innerText = (midVal > 0 ? '+' : '') + midVal + ' dB';
+
+            const highVal = parseFloat(document.getElementById('highSlider').value);
+            highEQ.gain.value = highVal;
+            document.getElementById('highVal').innerText = (highVal > 0 ? '+' : '') + highVal + ' dB';
+        }
+
+        // Event Listeners for Sliders
+        ['gainSlider', 'panSlider', 'lowSlider', 'midSlider', 'highSlider'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateAudioParams);
+        });
+
+        // Main Toggle Logic
+        toggleBtn.addEventListener('click', () => {
+            if (isRunning) {
+                stopAudio();
+            } else {
+                startAudio(micSelect.value);
+            }
+        });
+
+        // Load mics on load
+        window.addEventListener('load', getMicrophones);
+
     </script>
 </body>
 </html>
