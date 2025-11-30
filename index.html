@@ -81,21 +81,40 @@
                 </div>
             </div>
 
-            <!-- Input Selection -->
-            <div class="bg-slate-800 rounded-xl p-5 shadow-md border border-slate-700">
+            <!-- Device Selection (Input & Output) -->
+            <div class="bg-slate-800 rounded-xl p-5 shadow-md border border-slate-700 space-y-4">
                 <div class="flex justify-between items-center mb-2">
-                    <label class="text-sm font-medium text-slate-400 flex items-center gap-2">
-                        <i data-lucide="mic"></i> Välj Mikrofon (Input)
-                    </label>
-                    <button onclick="getMicrophones()" class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded flex items-center gap-1 transition-colors border border-slate-600">
+                    <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider">Ljudenheter</h3>
+                    <button onclick="getAllDevices()" class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded flex items-center gap-1 transition-colors border border-slate-600">
                         <i data-lucide="refresh-cw" class="w-3 h-3"></i> Uppdatera
                     </button>
                 </div>
-                <select id="micSelect" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="" disabled selected>Laddar mikrofoner...</option>
-                </select>
-                <p class="text-xs text-slate-500 mt-2">
-                    Om din USB-C-mikrofon inte syns, testa att koppla in den igen och tryck "Uppdatera".
+
+                <!-- Input Select -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1 flex items-center gap-2">
+                        <i data-lucide="mic" class="w-3 h-3"></i> Mikrofon (Input)
+                    </label>
+                    <select id="micSelect" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                        <option value="" disabled selected>Laddar mikrofoner...</option>
+                    </select>
+                </div>
+
+                <!-- Output Select -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1 flex items-center gap-2">
+                        <i data-lucide="speaker" class="w-3 h-3"></i> Högtalare (Output)
+                    </label>
+                    <select id="speakerSelect" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                        <option value="" disabled selected>Laddar högtalare...</option>
+                    </select>
+                    <p id="outputWarning" class="hidden text-xs text-orange-400 mt-1">
+                        Din webbläsare stödjer inte byte av output här. Ändra i systeminställningarna.
+                    </p>
+                </div>
+                
+                <p class="text-xs text-slate-500 italic">
+                    Om USB-C-mikrofonen tar över ljudet, välj dina hörlurar manuellt i listan ovan.
                 </p>
             </div>
 
@@ -188,6 +207,8 @@
         const statusIndicator = document.getElementById('statusIndicator');
         const controlsArea = document.getElementById('controlsArea');
         const micSelect = document.getElementById('micSelect');
+        const speakerSelect = document.getElementById('speakerSelect');
+        const outputWarning = document.getElementById('outputWarning');
         const visualizerContainer = document.getElementById('visualizer-container');
         const wakeLockStatus = document.getElementById('wakeLockStatus');
 
@@ -202,149 +223,151 @@
             bars.push(bar);
         }
 
-        // Initialize Audio Context on user interaction
+        // Initialize Audio Context
         async function initAudio() {
             if (!audioCtx) {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 audioCtx = new AudioContext();
             }
-
             if (audioCtx.state === 'suspended') {
                 await audioCtx.resume();
             }
         }
 
-        // Wake Lock Functions
+        // Wake Lock Logic
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
                     wakeLockStatus.classList.remove('hidden');
-                    console.log('Screen Wake Lock aktivt');
-                    
                     wakeLock.addEventListener('release', () => {
-                        console.log('Screen Wake Lock släppt');
-                        if (!isRunning) {
-                             wakeLockStatus.classList.add('hidden');
-                        }
+                        if (!isRunning) wakeLockStatus.classList.add('hidden');
                     });
                 }
             } catch (err) {
-                console.error(`Kunde inte aktivera Wake Lock: ${err.name}, ${err.message}`);
+                if (err.name !== 'NotAllowedError') {
+                    console.warn(`Wake Lock error: ${err.message}`);
+                }
+                wakeLockStatus.classList.add('hidden');
             }
         }
 
         async function releaseWakeLock() {
-            if (wakeLock !== null) {
-                await wakeLock.release();
+            if (wakeLock) {
+                try { await wakeLock.release(); } catch(e) {}
                 wakeLock = null;
                 wakeLockStatus.classList.add('hidden');
             }
         }
 
-        // Handle visibility change (re-acquire lock if tab becomes visible again)
         document.addEventListener('visibilitychange', async () => {
             if (wakeLock !== null && document.visibilityState === 'visible') {
                 await requestWakeLock();
             }
         });
 
-        async function getMicrophones() {
+        // --- Device Management ---
+        
+        async function getAllDevices() {
             try {
-                // Request permission first to get labels if we don't have them
-                // This is crucial on mobile to actually see the device names
+                // Request permission temporarily to ensure labels are visible
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                // We stop this temp stream immediately, we just needed the permission/labels
                 stream.getTracks().forEach(track => track.stop());
 
                 const devices = await navigator.mediaDevices.enumerateDevices();
+                
+                // Filter Inputs
                 const audioInputs = devices.filter(device => device.kind === 'audioinput');
-                
-                // Save current selection if possible
-                const currentSelection = micSelect.value;
-                micSelect.innerHTML = '';
-                
-                if (audioInputs.length === 0) {
-                     micSelect.innerHTML = '<option disabled>Inga mikrofoner hittades</option>';
-                     return;
-                }
+                populateSelect(micSelect, audioInputs, 'Mikrofon');
 
-                audioInputs.forEach(device => {
-                    const option = document.createElement('option');
-                    option.value = device.deviceId;
-                    // Fallback name if label is empty (common on mobile before permission)
-                    option.text = device.label || `Mikrofon/Input (${device.deviceId.slice(0,5)}...)`;
-                    micSelect.appendChild(option);
-                });
-
-                // Restore selection if it still exists
-                if (currentSelection && [...micSelect.options].some(o => o.value === currentSelection)) {
-                    micSelect.value = currentSelection;
-                }
-
-                // Add event listener for change
-                micSelect.onchange = async (e) => {
-                    if (isRunning) {
-                        stopAudio();
-                        await startAudio(e.target.value);
+                // Filter Outputs
+                const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
+                if (audioOutputs.length > 0) {
+                    populateSelect(speakerSelect, audioOutputs, 'Högtalare');
+                    outputWarning.classList.add('hidden');
+                } else {
+                    // Some browsers/OS don't expose outputs
+                    speakerSelect.innerHTML = '<option disabled>Standard (Systeminställning)</option>';
+                    // Check if setSinkId is supported at all
+                    if (!('setSinkId' in AudioContext.prototype) && !('setSinkId' in HTMLMediaElement.prototype)) {
+                        outputWarning.classList.remove('hidden');
                     }
-                };
+                }
                 
-                // Re-initialize icons for the new button
                 lucide.createIcons();
 
             } catch (err) {
-                console.error("Kunde inte hämta mikrofoner:", err);
-                micSelect.innerHTML = '<option>Åtkomst nekad eller fel</option>';
+                console.error("Device Error:", err);
+                micSelect.innerHTML = '<option>Fel vid laddning</option>';
             }
         }
 
-        async function startAudio(deviceId = null) {
+        function populateSelect(selectElement, devices, typeLabel) {
+            const currentVal = selectElement.value;
+            selectElement.innerHTML = '';
+            
+            if (devices.length === 0) {
+                selectElement.innerHTML = `<option disabled>Inga ${typeLabel.toLowerCase()} hittades</option>`;
+                return;
+            }
+
+            devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.text = device.label || `${typeLabel} (${device.deviceId.slice(0,5)}...)`;
+                selectElement.appendChild(option);
+            });
+
+            // Restore selection if exists, else select default
+            if (currentVal && [...selectElement.options].some(o => o.value === currentVal)) {
+                selectElement.value = currentVal;
+            }
+        }
+
+        // --- Audio Logic ---
+
+        async function startAudio(inputId = null) {
             try {
                 await initAudio();
-                
-                // Activate Wake Lock
                 await requestWakeLock();
 
+                // Input Constraints
                 const constraints = {
                     audio: {
-                        deviceId: deviceId ? { exact: deviceId } : undefined,
-                        echoCancellation: false, // Turn off for cleaner raw audio usually
-                        noiseSuppression: false, // We will handle EQ manually, but sometimes system NS is good.
-                        autoGainControl: false,  // We want manual gain control
+                        deviceId: inputId ? { exact: inputId } : undefined,
+                        echoCancellation: false, 
+                        noiseSuppression: false, 
+                        autoGainControl: false,  
                         latency: 0
                     }
                 };
 
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 
-                // Create Nodes
+                // Build Graph
                 streamSource = audioCtx.createMediaStreamSource(currentStream);
                 gainNode = audioCtx.createGain();
                 pannerNode = audioCtx.createStereoPanner();
                 analyser = audioCtx.createAnalyser();
-                compressorNode = audioCtx.createDynamicsCompressor(); // Limiter to protect ears
+                compressorNode = audioCtx.createDynamicsCompressor(); 
                 
-                // EQ Nodes (BiquadFilter)
+                // EQ
                 lowEQ = audioCtx.createBiquadFilter();
                 lowEQ.type = 'lowshelf';
-                lowEQ.frequency.value = 250; // Bass cutoff
+                lowEQ.frequency.value = 250;
 
                 midEQ = audioCtx.createBiquadFilter();
                 midEQ.type = 'peaking';
                 midEQ.Q.value = 1;
-                midEQ.frequency.value = 1500; // Human speech center
+                midEQ.frequency.value = 1500;
 
                 highEQ = audioCtx.createBiquadFilter();
                 highEQ.type = 'highshelf';
-                highEQ.frequency.value = 5000; // Clarity/Treble
+                highEQ.frequency.value = 5000;
 
-                // Apply initial UI values
                 updateAudioParams();
 
-                // Connect the chain: 
-                // Source -> Compressor (Safety) -> LowEQ -> MidEQ -> HighEQ -> Gain -> Panner -> Analyser -> Destination
+                // Chain: Source -> Compressor -> LowEQ -> MidEQ -> HighEQ -> Gain -> Panner -> Analyser -> Dest
                 streamSource
                     .connect(compressorNode)
                     .connect(lowEQ)
@@ -353,20 +376,42 @@
                     .connect(gainNode)
                     .connect(pannerNode)
                     .connect(analyser)
-                    .connect(audioCtx.destination);
+                    .connect(audioCtx.destination); // Default destination initially
 
-                // Setup Analyser for visualizer
+                // Attempt to set output immediately if selected
+                if (speakerSelect.value) {
+                    await setOutputDevice(speakerSelect.value);
+                }
+
+                // Visualizer
                 analyser.fftSize = 64;
                 drawVisualizer();
 
-                // UI Updates
                 isRunning = true;
                 updateUIState(true);
 
             } catch (err) {
-                console.error("Fel vid start av ljud:", err);
-                alert("Kunde inte starta mikrofonen. Försök att välja en annan mikrofon i listan.");
+                console.error("Start Error:", err);
+                alert("Kunde inte starta ljudet. Kontrollera att du gett behörighet.");
                 stopAudio();
+            }
+        }
+
+        async function setOutputDevice(deviceId) {
+            if (!deviceId) return;
+
+            try {
+                // Method 1: AudioContext.setSinkId (Modern/Chrome)
+                if (typeof audioCtx.setSinkId === 'function') {
+                    await audioCtx.setSinkId(deviceId);
+                    console.log(`Output satt till ${deviceId} via AudioContext`);
+                } 
+                // Method 2: Fallback (unlikely needed for plain web audio but good to know)
+                else {
+                    console.warn("setSinkId stöds inte på denna webbläsare för AudioContext.");
+                }
+            } catch (err) {
+                console.error("Kunde inte byta output:", err);
             }
         }
 
@@ -374,85 +419,43 @@
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
             }
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-            }
-            // Disconnect nodes if they exist
-            if (streamSource) {
-                streamSource.disconnect();
-            }
+            if (animationId) cancelAnimationFrame(animationId);
+            if (streamSource) streamSource.disconnect();
             
-            // Release Wake Lock
             releaseWakeLock();
-
             isRunning = false;
             updateUIState(false);
-            
-            // Reset visualizer
             bars.forEach(bar => bar.style.height = '5%');
         }
 
-        function updateUIState(active) {
-            if (active) {
-                toggleBtn.innerHTML = '<i data-lucide="square" class="fill-current"></i> Stoppa Ljudet';
-                toggleBtn.classList.remove('bg-green-600', 'hover:bg-green-500');
-                toggleBtn.classList.add('bg-red-600', 'hover:bg-red-500');
-                statusIndicator.innerText = "LIVE";
-                statusIndicator.classList.remove('bg-red-900', 'text-red-200');
-                statusIndicator.classList.add('bg-green-900', 'text-green-200');
-                controlsArea.classList.remove('opacity-50', 'pointer-events-none');
-                lucide.createIcons();
-            } else {
-                toggleBtn.innerHTML = '<i data-lucide="power"></i> Starta Ljudet';
-                toggleBtn.classList.remove('bg-red-600', 'hover:bg-red-500');
-                toggleBtn.classList.add('bg-green-600', 'hover:bg-green-500');
-                statusIndicator.innerText = "OFFLINE";
-                statusIndicator.classList.remove('bg-green-900', 'text-green-200');
-                statusIndicator.classList.add('bg-red-900', 'text-red-200');
-                controlsArea.classList.add('opacity-50', 'pointer-events-none');
-                lucide.createIcons();
+        // --- UI & Events ---
+
+        micSelect.onchange = async (e) => {
+            if (isRunning) {
+                stopAudio();
+                await startAudio(e.target.value);
             }
-        }
+        };
 
-        function drawVisualizer() {
-            if (!isRunning) return;
-            
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            analyser.getByteFrequencyData(dataArray);
-
-            // Map data to bars
-            // We only take a portion of the buffer because speech isn't usually in the super high freqs
-            const step = Math.floor(bufferLength / barCount);
-
-            for (let i = 0; i < barCount; i++) {
-                const value = dataArray[i * step];
-                const percent = (value / 255) * 100;
-                
-                bars[i].style.height = Math.max(5, percent) + '%';
-                
-                // Change color based on intensity
-                if (percent > 80) {
-                    bars[i].className = 'w-full mx-0.5 rounded-t-sm transition-all bg-red-500';
-                } else if (percent > 50) {
-                    bars[i].className = 'w-full mx-0.5 rounded-t-sm transition-all bg-yellow-500';
-                } else {
-                    bars[i].className = 'w-full mx-0.5 rounded-t-sm transition-all bg-blue-500';
-                }
+        speakerSelect.onchange = async (e) => {
+            if (isRunning) {
+                await setOutputDevice(e.target.value);
             }
+        };
 
-            animationId = requestAnimationFrame(drawVisualizer);
-        }
+        toggleBtn.addEventListener('click', () => {
+            if (isRunning) stopAudio();
+            else startAudio(micSelect.value);
+        });
 
+        // Parameter Updates
         function updateAudioParams() {
             if (!isRunning) return;
-
-            // Gain
+            
             const gainVal = parseFloat(document.getElementById('gainSlider').value);
             gainNode.gain.value = gainVal;
             document.getElementById('gainVal').innerText = gainVal.toFixed(1) + 'x';
 
-            // Panner
             const panVal = parseFloat(document.getElementById('panSlider').value);
             pannerNode.pan.value = panVal;
             let panText = "Mitten";
@@ -460,46 +463,66 @@
             if (panVal > 0.1) panText = "Höger";
             document.getElementById('panVal').innerText = panText;
 
-            // EQ
-            const lowVal = parseFloat(document.getElementById('lowSlider').value);
-            lowEQ.gain.value = lowVal;
-            document.getElementById('lowVal').innerText = (lowVal > 0 ? '+' : '') + lowVal + ' dB';
+            lowEQ.gain.value = parseFloat(document.getElementById('lowSlider').value);
+            document.getElementById('lowVal').innerText = (lowEQ.gain.value > 0 ? '+' : '') + lowEQ.gain.value + ' dB';
 
-            const midVal = parseFloat(document.getElementById('midSlider').value);
-            midEQ.gain.value = midVal;
-            document.getElementById('midVal').innerText = (midVal > 0 ? '+' : '') + midVal + ' dB';
+            midEQ.gain.value = parseFloat(document.getElementById('midSlider').value);
+            document.getElementById('midVal').innerText = (midEQ.gain.value > 0 ? '+' : '') + midEQ.gain.value + ' dB';
 
-            const highVal = parseFloat(document.getElementById('highSlider').value);
-            highEQ.gain.value = highVal;
-            document.getElementById('highVal').innerText = (highVal > 0 ? '+' : '') + highVal + ' dB';
+            highEQ.gain.value = parseFloat(document.getElementById('highSlider').value);
+            document.getElementById('highVal').innerText = (highEQ.gain.value > 0 ? '+' : '') + highEQ.gain.value + ' dB';
         }
 
-        // Event Listeners for Sliders
         ['gainSlider', 'panSlider', 'lowSlider', 'midSlider', 'highSlider'].forEach(id => {
             document.getElementById(id).addEventListener('input', updateAudioParams);
         });
 
-        // Main Toggle Logic
-        toggleBtn.addEventListener('click', () => {
-            if (isRunning) {
-                stopAudio();
+        function updateUIState(active) {
+            if (active) {
+                toggleBtn.innerHTML = '<i data-lucide="square" class="fill-current"></i> Stoppa Ljudet';
+                toggleBtn.classList.replace('bg-green-600', 'bg-red-600');
+                toggleBtn.classList.replace('hover:bg-green-500', 'hover:bg-red-500');
+                statusIndicator.innerText = "LIVE";
+                statusIndicator.classList.replace('bg-red-900', 'bg-green-900');
+                statusIndicator.classList.replace('text-red-200', 'text-green-200');
+                controlsArea.classList.remove('opacity-50', 'pointer-events-none');
             } else {
-                startAudio(micSelect.value);
+                toggleBtn.innerHTML = '<i data-lucide="power"></i> Starta Ljudet';
+                toggleBtn.classList.replace('bg-red-600', 'bg-green-600');
+                toggleBtn.classList.replace('hover:bg-red-500', 'hover:bg-green-500');
+                statusIndicator.innerText = "OFFLINE";
+                statusIndicator.classList.replace('bg-green-900', 'bg-red-900');
+                statusIndicator.classList.replace('text-green-200', 'text-red-200');
+                controlsArea.classList.add('opacity-50', 'pointer-events-none');
             }
-        });
-
-        // Load mics on load
-        window.addEventListener('load', getMicrophones);
-        
-        // Listen for device changes (plugging in usb-c adapter)
-        // Note: Not supported on all mobile browsers, hence the manual button
-        if (navigator.mediaDevices) {
-            navigator.mediaDevices.ondevicechange = () => {
-                console.log("Enheter ändrades, uppdaterar lista...");
-                getMicrophones();
-            };
+            lucide.createIcons();
         }
 
+        function drawVisualizer() {
+            if (!isRunning) return;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+            const step = Math.floor(bufferLength / barCount);
+
+            for (let i = 0; i < barCount; i++) {
+                const value = dataArray[i * step];
+                const percent = (value / 255) * 100;
+                bars[i].style.height = Math.max(5, percent) + '%';
+                if (percent > 80) bars[i].className = 'w-full mx-0.5 rounded-t-sm transition-all bg-red-500';
+                else if (percent > 50) bars[i].className = 'w-full mx-0.5 rounded-t-sm transition-all bg-yellow-500';
+                else bars[i].className = 'w-full mx-0.5 rounded-t-sm transition-all bg-blue-500';
+            }
+            animationId = requestAnimationFrame(drawVisualizer);
+        }
+
+        window.addEventListener('load', getAllDevices);
+        if (navigator.mediaDevices) {
+            navigator.mediaDevices.ondevicechange = () => {
+                console.log("Devices changed");
+                getAllDevices();
+            };
+        }
     </script>
 </body>
 </html>
