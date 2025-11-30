@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hörhjälp Enkel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            /* Djupare, rikare bakgrundsfärg */
+            background: radial-gradient(circle at top, #1e1b4b, #020617);
+            color: #e2e8f0;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        /* Glassmorphism containers */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .visualizer-container {
+            position: relative;
+            height: 18vh;
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 1.5rem;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            margin-bottom: 1.5rem;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* Volume Bar */
+        .volume-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 99px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+        .volume-bar-fill {
+            height: 100%;
+            width: 0%;
+            /* Gradient grön till cyan */
+            background: linear-gradient(90deg, #22c55e, #06b6d4);
+            transition: width 0.1s linear;
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+        }
+
+        /* Slider - Modernare look */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 24px; width: 24px;
+            border-radius: 50%; 
+            background: #ffffff; 
+            cursor: pointer;
+            margin-top: -10px; 
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+            border: 2px solid #6366f1; /* Indigo border */
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer;
+            background: rgba(255, 255, 255, 0.2); 
+            border-radius: 2px;
+        }
+        
+        select {
+            background-color: rgba(15, 23, 42, 0.8);
+            color: #f8fafc;
+            padding: 12px;
+            border-radius: 12px;
+            width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            appearance: none; /* Tar bort standardpilen */
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.75rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
+
+        /* Knapp-effekter */
+        .btn-glow {
+            position: relative;
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* Active State Animation */
+        .active-pulse {
+            animation: pulse-glow 2s infinite;
+            background: linear-gradient(135deg, #4f46e5, #06b6d4); /* Indigo to Cyan */
+            border: none;
+        }
+        
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        }
+        
+        .title-gradient {
+            background: linear-gradient(to right, #818cf8, #22d3ee);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen p-6 max-w-md mx-auto">
+
+    <header class="flex justify-between items-center py-6">
+        <div>
+            <h1 class="text-3xl font-extrabold title-gradient tracking-tight">Hörhjälp</h1>
+            <p class="text-xs text-indigo-200/60 font-medium tracking-wide">AUDIO ENHANCER PRO</p>
+        </div>
+        <div id="statusIndicator" class="px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-slate-800/80 text-slate-400 border border-slate-700/50 shadow-sm backdrop-blur-sm">
+            OFFLINE
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col justify-center space-y-6">
+
+        <!-- SSL Warning -->
+        <div id="sslWarning" class="hidden bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-sm text-red-200 backdrop-blur-sm">
+            <div class="flex items-center gap-2 mb-1 text-red-400 font-bold"><i class="fa-solid fa-lock"></i> Säkerhetsvarning</div>
+            Webbplatsen är inte säker (ej HTTPS). Mikrofonen kommer troligen blockeras.
+        </div>
+
+        <!-- Visualizer Area -->
+        <div>
+             <div class="flex justify-between items-end mb-2 px-1">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Signal</p>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Input Level</p>
+            </div>
+            
+            <div class="visualizer-container">
+                <canvas id="visualizerCanvas"></canvas>
+                <!-- Dekorativt rutnät över canvas -->
+                <div class="absolute inset-0 pointer-events-none opacity-10" 
+                     style="background-image: linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px); background-size: 20px 20px;">
+                </div>
+            </div>
+
+            <div class="volume-bar-container">
+                <div id="volumeBar" class="volume-bar-fill"></div>
+            </div>
+        </div>
+
+        <!-- Controls (Glass Panel) -->
+        <div class="glass-panel p-6 rounded-3xl space-y-5">
+            
+            <!-- Mic Select -->
+            <div id="deviceControls" class="opacity-50 pointer-events-none transition-opacity duration-300">
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] font-bold text-indigo-200/50 uppercase tracking-wider block mb-1.5 ml-1">Mikrofon (Input)</label>
+                        <select id="micSelect"><option value="">Välj mikrofon...</option></select>
+                    </div>
+                    
+                    <div>
+                        <label class="text-[10px] font-bold text-indigo-200/50 uppercase tracking-wider block mb-1.5 ml-1">Hörlurar (Output)</label>
+                        <select id="outputSelect"><option value="">Systemstandard</option></select>
+                    </div>
+                </div>
+                <p id="outputNote" class="text-[10px] text-amber-300/70 hidden mt-2 text-center bg-amber-900/20 p-2 rounded-lg border border-amber-500/20">
+                    <i class="fa-solid fa-circle-info mr-1"></i> Ändra ljudutgång i mobilens inställningar.
+                </p>
+            </div>
+
+            <!-- Volume Control -->
+            <div class="pt-2 border-t border-white/5">
+                <div class="flex justify-between mb-3 items-center">
+                    <label class="text-xs font-bold text-slate-300 uppercase tracking-wide">Förstärkning</label>
+                    <span id="gainValue" class="text-sm font-mono font-bold text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-800/50">1.0x</span>
+                </div>
+                <input type="range" id="gainSlider" min="0" max="5" step="0.1" value="1">
+                <div class="flex justify-between mt-2 text-[10px] text-slate-500 font-medium px-1">
+                    <span>0%</span>
+                    <span>500%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Button -->
+        <div class="flex flex-col items-center justify-center pb-2 pt-2 space-y-4">
+            <button id="toggleBtn" class="btn-glow w-24 h-24 rounded-full text-slate-300 font-bold text-lg flex flex-col items-center justify-center transition-all duration-300 transform active:scale-95">
+                <i class="fa-solid fa-power-off text-2xl mb-1"></i>
+                <span id="btnText" class="text-xs tracking-widest mt-1">START</span>
+            </button>
+            <p id="instructionText" class="text-xs text-center text-slate-500/80 max-w-[200px] leading-relaxed">
+                Anslut hörlurar för bästa upplevelse
+            </p>
+        </div>
+
+        <!-- Error Log -->
+        <div id="errorMsg" class="hidden text-red-200 text-center text-xs p-3 bg-red-950/80 rounded-xl border border-red-500/30 backdrop-blur-md break-words font-mono shadow-lg"></div>
+
+    </main>
+
+    <script>
+        // --- Core Audio Variables ---
+        let audioContext = null;
+        let mediaStream = null;
+        let sourceNode = null;
+        let gainNode = null;
+        let analyserNode = null;
+        let isRunning = false;
+        let wakeLock = null;
+        let animationId = null;
+        let hasPermissions = false;
+
+        // --- UI Elements ---
+        const toggleBtn = document.getElementById('toggleBtn');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const gainSlider = document.getElementById('gainSlider');
+        const gainValue = document.getElementById('gainValue');
+        const micSelect = document.getElementById('micSelect');
+        const outputSelect = document.getElementById('outputSelect');
+        const deviceControls = document.getElementById('deviceControls');
+        const outputNote = document.getElementById('outputNote');
+        const volumeBar = document.getElementById('volumeBar');
+        const errorMsg = document.getElementById('errorMsg');
+        const canvas = document.getElementById('visualizerCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- Secure Context Check ---
+        if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+            document.getElementById('sslWarning').classList.remove('hidden');
+        }
+
+        // --- Event Listeners ---
+        toggleBtn.addEventListener('click', handleToggle);
+        
+        gainSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            gainValue.textContent = val.toFixed(1) + 'x';
+            if (gainNode) {
+                // Use SetTargetAtTime for smooth volume changes preventing clicks
+                gainNode.gain.setTargetAtTime(val, audioContext.currentTime, 0.1);
+            }
+        });
+
+        micSelect.addEventListener('change', async () => {
+            if (isRunning) {
+                // Restart with new mic
+                await stopAudio();
+                await startAudio(micSelect.value);
+            }
+        });
+
+        outputSelect.addEventListener('change', async () => {
+            if (audioContext && outputSelect.value) {
+                try {
+                    // Check if browser supports setSinkId
+                    if (typeof audioContext.setSinkId === 'function') {
+                        await audioContext.setSinkId(outputSelect.value);
+                        console.log('Output device set to ' + outputSelect.value);
+                    } else {
+                        console.warn('Browser does not support setSinkId');
+                        outputNote.classList.remove('hidden');
+                    }
+                } catch (err) {
+                    console.error('Error setting output:', err);
+                    errorMsg.innerText = "Kunde inte byta output: " + err.message;
+                    errorMsg.classList.remove('hidden');
+                }
+            }
+        });
+
+        // --- Main Logic ---
+
+        async function handleToggle() {
+            if (isRunning) {
+                await stopAudio();
+            } else {
+                // If we don't have perms yet, start with default to trigger prompt
+                // If we do have perms, use the dropdown value
+                const deviceId = hasPermissions ? micSelect.value : undefined;
+                await startAudio(deviceId);
+            }
+        }
+
+        async function startAudio(specificDeviceId) {
+            errorMsg.classList.add('hidden');
+            errorMsg.innerText = "";
+            outputNote.classList.add('hidden');
+            
+            try {
+                // 1. Setup Audio Context (Must be created on user gesture)
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!audioContext) {
+                    audioContext = new AudioContext({ latencyHint: 'interactive' });
+                }
+                
+                // Always resume to be safe (iOS requirement)
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+
+                // 2. Build Constraints
+                const constraints = {
+                    audio: {
+                        echoCancellation: false, // Turned off for simpler raw audio
+                        noiseSuppression: true,
+                        autoGainControl: false,  // We handle gain
+                        latency: 0
+                    }
+                };
+
+                // Add Device ID if specific one requested
+                if (specificDeviceId) {
+                    constraints.audio.deviceId = { exact: specificDeviceId };
+                }
+
+                // 3. Get User Media
+                statusIndicator.innerText = "STARTAR...";
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                // Permissions granted!
+                hasPermissions = true;
+                deviceControls.classList.remove('opacity-50', 'pointer-events-none');
+
+                // 4. Setup Audio Graph
+                sourceNode = audioContext.createMediaStreamSource(mediaStream);
+                gainNode = audioContext.createGain();
+                analyserNode = audioContext.createAnalyser();
+
+                // Set initial volume
+                gainNode.gain.value = parseFloat(gainSlider.value);
+                analyserNode.fftSize = 256; // Smaller FFT for simpler bars
+
+                // Connect: Source -> Gain -> Analyser -> Speakers
+                sourceNode.connect(gainNode);
+                gainNode.connect(analyserNode);
+                analyserNode.connect(audioContext.destination);
+
+                // 5. Update UI
+                isRunning = true;
+                updateUI(true);
+                startVisualizer();
+                requestWakeLock();
+                
+                // 6. List Devices (Now that we have permission)
+                await refreshDeviceList();
+
+                // 7. Try to apply selected output if one exists
+                if (outputSelect.value && typeof audioContext.setSinkId === 'function') {
+                    audioContext.setSinkId(outputSelect.value).catch(e => console.log(e));
+                }
+
+            } catch (err) {
+                console.error(err);
+                let msg = "Fel: " + err.message;
+                if (err.name === 'NotAllowedError') msg = "Åtkomst nekad. Du måste tillåta mikrofonen.";
+                if (err.name === 'NotFoundError') msg = "Ingen mikrofon hittades.";
+                
+                errorMsg.innerText = msg;
+                errorMsg.classList.remove('hidden');
+                stopAudio();
+            }
+        }
+
+        async function stopAudio() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            if (sourceNode) {
+                sourceNode.disconnect();
+                sourceNode = null;
+            }
+            
+            if (wakeLock) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+
+            cancelAnimationFrame(animationId);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            volumeBar.style.width = '0%';
+            
+            isRunning = false;
+            updateUI(false);
+        }
+
+        // --- Visualizer & Volume Meter ---
+        function startVisualizer() {
+            const bufferLength = analyserNode.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            const draw = () => {
+                if (!isRunning) return;
+                animationId = requestAnimationFrame(draw);
+
+                analyserNode.getByteTimeDomainData(dataArray);
+
+                // 1. Calculate Volume Level for Green Bar
+                let sum = 0;
+                for(let i = 0; i < bufferLength; i++) {
+                    const x = (dataArray[i] - 128);
+                    sum += x * x;
+                }
+                const rms = Math.sqrt(sum / bufferLength); 
+                const volumePercent = Math.min(100, (rms / 50) * 100); // Amplify sensitivity
+                volumeBar.style.width = volumePercent + '%';
+
+                // 2. Draw Waveform - Updated colors for UX
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Use clearRect for transparent bg
+                
+                ctx.lineWidth = 3;
+                // Create gradient for the line
+                let gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+                gradient.addColorStop(0, "#4f46e5"); // Indigo
+                gradient.addColorStop(0.5, "#06b6d4"); // Cyan
+                gradient.addColorStop(1, "#4f46e5"); // Indigo
+                
+                ctx.strokeStyle = gradient;
+                
+                ctx.beginPath();
+
+                const sliceWidth = canvas.width * 1.0 / bufferLength;
+                let x = 0;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = dataArray[i] / 128.0;
+                    const y = v * canvas.height / 2;
+                    
+                    // Smooth out the line
+                    if (i === 0) ctx.moveTo(x, y);
+                    else {
+                         // Quadratic curve for smoother look (optional, keeping lineTo for speed/battery)
+                         ctx.lineTo(x, y);
+                    }
+                    x += sliceWidth;
+                }
+                ctx.lineTo(canvas.width, canvas.height / 2);
+                ctx.stroke();
+            };
+            draw();
+        }
+
+        // --- Device Enumeration ---
+        async function refreshDeviceList() {
+            try {
+                // Must have permission first to see labels
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                
+                // 1. Handle Inputs
+                const inputs = devices.filter(d => d.kind === 'audioinput');
+                const currentMic = micSelect.value;
+                micSelect.innerHTML = ''; 
+
+                if (inputs.length === 0) {
+                    micSelect.add(new Option('Inga mikrofoner', ''));
+                } else {
+                    inputs.forEach((device, i) => {
+                        const label = device.label || `Mikrofon ${i+1}`;
+                        const opt = new Option(label, device.deviceId);
+                        micSelect.add(opt);
+                    });
+                }
+                if (currentMic && [...micSelect.options].some(o => o.value === currentMic)) {
+                    micSelect.value = currentMic;
+                }
+
+                // 2. Handle Outputs
+                const outputs = devices.filter(d => d.kind === 'audiooutput');
+                const currentOut = outputSelect.value;
+                outputSelect.innerHTML = '';
+
+                // If browser doesn't expose outputs (common on iOS/some Android)
+                if (outputs.length === 0) {
+                     outputSelect.add(new Option('Standard (Systemstyrd)', ''));
+                     // Check for setSinkId support to warn user
+                     const AudioContext = window.AudioContext || window.webkitAudioContext;
+                     // Safe check
+                     if (audioContext && typeof audioContext.setSinkId !== 'function') {
+                         outputNote.classList.remove('hidden');
+                     }
+                } else {
+                    outputSelect.add(new Option('Standard', '')); // Default option
+                    outputs.forEach((device, i) => {
+                        const label = device.label || `Högtalare ${i+1}`;
+                        const opt = new Option(label, device.deviceId);
+                        outputSelect.add(opt);
+                    });
+                }
+                
+                if (currentOut && [...outputSelect.options].some(o => o.value === currentOut)) {
+                    outputSelect.value = currentOut;
+                }
+
+            } catch (e) {
+                console.log("Kunde inte lista enheter", e);
+            }
+        }
+
+        // --- Helpers ---
+        function updateUI(active) {
+            const btn = document.getElementById('toggleBtn');
+            const status = document.getElementById('statusIndicator');
+            
+            if (active) {
+                btn.classList.add('active-pulse');
+                btn.classList.remove('btn-glow'); // Remove static glow
+                btn.innerHTML = '<i class="fa-solid fa-stop text-2xl mb-1 text-white"></i>';
+                
+                status.innerText = "LIVE";
+                status.className = "px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.3)] backdrop-blur-sm";
+            } else {
+                btn.classList.remove('active-pulse');
+                btn.classList.add('btn-glow');
+                btn.innerHTML = '<i class="fa-solid fa-power-off text-2xl mb-1"></i><span class="text-xs tracking-widest mt-1">START</span>';
+                
+                status.innerText = "OFFLINE";
+                status.className = "px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-slate-800/80 text-slate-400 border border-slate-700/50 shadow-sm backdrop-blur-sm";
+            }
+        }
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (e) {}
+        }
+    </script>
+</body>
+</html>
