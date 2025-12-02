@@ -152,7 +152,7 @@
 
         <label for="audioOutput">2. Välj Hörlurar (Output)</label>
         <select id="audioOutput">
-            <option value="" disabled selected>Laddar enheter...</option>
+            <option value="default" selected>Systemstandard (Rekommenderas)</option>
         </select>
     </div>
 
@@ -175,7 +175,7 @@
     <p class="status-text" id="statusMessage">Redo att starta</p>
 
     <!-- Dold audio tagg för routing av output -->
-    <audio id="audioPlayer" autoplay playsinline></audio>
+    <audio id="audioPlayer" playsinline></audio>
 
     <script>
         // Variabler för Web Audio API
@@ -209,14 +209,15 @@
         async function getDevices() {
             try {
                 // VIKTIG ÄNDRING: Hämta behörighet och STÄNG sedan strömmen direkt.
-                // Detta förhindrar att telefonen låser sig vid fel mikrofon.
                 const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 tempStream.getTracks().forEach(track => track.stop());
 
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 
+                // Rensa input, men behåll default-alternativet för output
                 inputSelect.innerHTML = '';
-                outputSelect.innerHTML = '';
+                // Spara "Systemstandard" som första val
+                outputSelect.innerHTML = '<option value="default">Systemstandard (Rekommenderas)</option>';
 
                 let hasOutputSelection = false;
 
@@ -231,18 +232,11 @@
                            inputSelect.appendChild(option);
                         }
                     } else if (device.kind === 'audiooutput') {
+                        // Lägg till specifika utgångar efter standardvalet
                         outputSelect.appendChild(option);
                         hasOutputSelection = true;
                     }
                 });
-
-                // Om webbläsaren inte stödjer val av output
-                if (!hasOutputSelection) {
-                    const opt = document.createElement('option');
-                    opt.text = "Systemstandard (Använd telefoninställningar)";
-                    outputSelect.appendChild(opt);
-                    outputSelect.disabled = true;
-                }
 
                 statusMsg.textContent = "Enheter laddade. Välj USB-mick och starta.";
 
@@ -263,13 +257,17 @@
             }
 
             try {
-                // Säkerställ att context skapas eller återupptas
+                // Skapa context
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 
-                // Konfigurera constraints för att strikt tvinga vald enhet
+                // VIKTIGT: Resuma context direkt vid användarinteraktion (klicket)
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+
                 const constraints = {
                     audio: {
-                        deviceId: { exact: inputDeviceId }, // Tvingar exakt detta ID
+                        deviceId: { exact: inputDeviceId },
                         echoCancellation: false,
                         noiseSuppression: false,
                         autoGainControl: false,
@@ -279,23 +277,20 @@
 
                 mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 
-                // Hämta information om vilket spår som faktiskt valdes för verifiering
+                // Info för debugging
                 const activeTrack = mediaStream.getAudioTracks()[0];
-                const activeSettings = activeTrack.getSettings();
                 const activeLabel = activeTrack.label;
-
-                console.log("Aktiv enhet:", activeLabel);
+                console.log("Aktiv input:", activeLabel);
 
                 // Skapa Audio noder
                 sourceNode = audioContext.createMediaStreamSource(mediaStream);
                 
-                // A. High-pass filter (Tar bort buller/muller under 150Hz)
+                // Filter och Effekter
                 filterNode = audioContext.createBiquadFilter();
                 filterNode.type = 'highpass';
                 filterNode.frequency.value = 150; 
                 filterNode.Q.value = 0.7;
 
-                // B. Kompressor (Skyddar öronen mot plötsliga höga ljud)
                 compressorNode = audioContext.createDynamicsCompressor();
                 compressorNode.threshold.value = -20;
                 compressorNode.knee.value = 40;
@@ -303,45 +298,63 @@
                 compressorNode.attack.value = 0;
                 compressorNode.release.value = 0.25;
 
-                // C. Gain (Volymkontroll)
                 gainNode = audioContext.createGain();
                 gainNode.gain.value = volSlider.value;
 
-                // D. Analyser (För visualisering)
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 256;
-
-                // E. Destination för Web Audio API till HTML Audio Element
-                streamDestination = audioContext.createMediaStreamDestination();
 
                 // Koppla ihop kedjan
                 sourceNode.connect(filterNode);
                 filterNode.connect(compressorNode);
                 compressorNode.connect(gainNode);
                 gainNode.connect(analyser);
-                gainNode.connect(streamDestination);
 
-                // Koppla till output
-                audioPlayer.srcObject = streamDestination.stream;
-
-                if (outputDeviceId && 'setSinkId' in audioPlayer) {
-                    await audioPlayer.setSinkId(outputDeviceId);
+                // ROUTING LOGIK:
+                // Om användaren valt "Systemstandard" (default), koppla direkt till AudioContext destination.
+                // Detta är säkrast för att få ljud.
+                // Om användaren valt en specifik enhet, gå via <audio> elementet.
+                
+                if (outputDeviceId === 'default' || !outputDeviceId) {
+                    console.log("Kopplar direkt till systemets output (destination).");
+                    gainNode.connect(audioContext.destination);
+                    statusMsg.textContent = `Aktiv (Systemljud): ${activeLabel}`;
+                } else {
+                    console.log("Kopplar via audio-tagg för specifik routing.");
+                    streamDestination = audioContext.createMediaStreamDestination();
+                    gainNode.connect(streamDestination);
+                    
+                    audioPlayer.srcObject = streamDestination.stream;
+                    audioPlayer.volume = 1.0; // Säkerställ maxvolym på elementet
+                    
+                    if ('setSinkId' in audioPlayer) {
+                        try {
+                            await audioPlayer.setSinkId(outputDeviceId);
+                            console.log("Sink ID satt till", outputDeviceId);
+                        } catch (e) {
+                            console.warn("Kunde inte sätta Sink ID", e);
+                        }
+                    }
+                    
+                    try {
+                        await audioPlayer.play();
+                    } catch (e) {
+                        console.error("Autoplay förhindrades", e);
+                        alert("Kunde inte spela upp ljud via vald utgång. Försök byta till 'Systemstandard'.");
+                    }
+                    statusMsg.textContent = `Aktiv (Via routing): ${activeLabel}`;
                 }
-
-                await audioPlayer.play();
 
                 visualize();
                 
-                // UI Uppdatering med information om aktiv mick
                 btn.textContent = "Stoppa Lyssning";
                 btn.className = "btn-stop";
-                statusMsg.textContent = `Använder: ${activeLabel || 'Vald Mikrofon'}`;
                 isRunning = true;
 
             } catch (err) {
                 console.error("Fel vid start:", err);
                 statusMsg.textContent = "Fel: " + err.message;
-                alert("Kunde inte starta ljudet. Kontrollera att ingen annan app använder micken.");
+                alert("Ett fel uppstod. Kontrollera behörigheter.");
             }
         }
 
@@ -356,6 +369,10 @@
             if (animationId) {
                 cancelAnimationFrame(animationId);
             }
+            
+            // Stoppa även audio elementet om det används
+            audioPlayer.pause();
+            audioPlayer.srcObject = null;
             
             canvasCtx.fillStyle = '#111';
             canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
@@ -382,13 +399,11 @@
             }
         });
 
+        // Om användaren byter output medan det körs, starta om för att byta routing-metod
         outputSelect.addEventListener('change', async (e) => {
-            if (isRunning && 'setSinkId' in audioPlayer) {
-                try {
-                    await audioPlayer.setSinkId(e.target.value);
-                } catch(err) {
-                    console.error("Kunde inte byta output", err);
-                }
+            if (isRunning) {
+                stopAudio();
+                setTimeout(startAudio, 200); // Kort paus för att låta resurser släppas
             }
         });
 
