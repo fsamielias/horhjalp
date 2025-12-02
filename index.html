@@ -208,8 +208,11 @@
         // 1. Hämta lista på enheter (Mickar och Högtalare)
         async function getDevices() {
             try {
-                // Vi måste be om tillåtelse först för att se etiketter (namn) på enheterna
-                await navigator.mediaDevices.getUserMedia({ audio: true });
+                // VIKTIG ÄNDRING: Hämta behörighet och STÄNG sedan strömmen direkt.
+                // Detta förhindrar att telefonen låser sig vid fel mikrofon.
+                const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                tempStream.getTracks().forEach(track => track.stop());
+
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 
                 inputSelect.innerHTML = '';
@@ -223,14 +226,17 @@
                     option.text = device.label || `${device.kind} (${device.deviceId.slice(0,5)}...)`;
 
                     if (device.kind === 'audioinput') {
-                        inputSelect.appendChild(option);
+                        // Filtrera bort "kommunikation"-enheter som ofta är headset-micken på Android
+                        if (!device.label.toLowerCase().includes('communication')) {
+                           inputSelect.appendChild(option);
+                        }
                     } else if (device.kind === 'audiooutput') {
                         outputSelect.appendChild(option);
                         hasOutputSelection = true;
                     }
                 });
 
-                // Om webbläsaren inte stödjer val av output (vissa mobila webbläsare döljer detta)
+                // Om webbläsaren inte stödjer val av output
                 if (!hasOutputSelection) {
                     const opt = document.createElement('option');
                     opt.text = "Systemstandard (Använd telefoninställningar)";
@@ -238,7 +244,7 @@
                     outputSelect.disabled = true;
                 }
 
-                statusMsg.textContent = "Enheter laddade. Välj mick och tryck Start.";
+                statusMsg.textContent = "Enheter laddade. Välj USB-mick och starta.";
 
             } catch (err) {
                 console.error(err);
@@ -257,21 +263,29 @@
             }
 
             try {
+                // Säkerställ att context skapas eller återupptas
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 
-                // Hämta ljud från vald mick med låg latency inställning
+                // Konfigurera constraints för att strikt tvinga vald enhet
                 const constraints = {
                     audio: {
-                        deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
-                        echoCancellation: false, // Stäng av om vi vill ha rå ljud
-                        noiseSuppression: false, // Vi hanterar filter själva för bättre kontroll
-                        autoGainControl: false,  // Vi hanterar volym själva
+                        deviceId: { exact: inputDeviceId }, // Tvingar exakt detta ID
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
                         latency: 0
                     }
                 };
 
                 mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 
+                // Hämta information om vilket spår som faktiskt valdes för verifiering
+                const activeTrack = mediaStream.getAudioTracks()[0];
+                const activeSettings = activeTrack.getSettings();
+                const activeLabel = activeTrack.label;
+
+                console.log("Aktiv enhet:", activeLabel);
+
                 // Skapa Audio noder
                 sourceNode = audioContext.createMediaStreamSource(mediaStream);
                 
@@ -298,42 +312,36 @@
                 analyser.fftSize = 256;
 
                 // E. Destination för Web Audio API till HTML Audio Element
-                // Detta krävs för att kunna använda setSinkId (välja output)
                 streamDestination = audioContext.createMediaStreamDestination();
 
-                // Koppla ihop kedjan:
-                // Mick -> Filter -> Kompressor -> Volym -> Visualizer -> Destination
+                // Koppla ihop kedjan
                 sourceNode.connect(filterNode);
                 filterNode.connect(compressorNode);
                 compressorNode.connect(gainNode);
                 gainNode.connect(analyser);
                 gainNode.connect(streamDestination);
 
-                // Koppla Web Audio destinationen till <audio> elementet
+                // Koppla till output
                 audioPlayer.srcObject = streamDestination.stream;
 
-                // Sätt output enhet (Hörlurar)
                 if (outputDeviceId && 'setSinkId' in audioPlayer) {
                     await audioPlayer.setSinkId(outputDeviceId);
-                    console.log(`Output satt till ${outputDeviceId}`);
-                } else if (outputDeviceId) {
-                    console.warn("setSinkId stöds inte av denna webbläsare, ljudet går till systemstandard.");
                 }
 
                 await audioPlayer.play();
 
-                visualize(); // Starta visualisering
+                visualize();
                 
-                // UI Uppdatering
+                // UI Uppdatering med information om aktiv mick
                 btn.textContent = "Stoppa Lyssning";
                 btn.className = "btn-stop";
-                statusMsg.textContent = "Aktiv: Filtrerar och förstärker ljud...";
+                statusMsg.textContent = `Använder: ${activeLabel || 'Vald Mikrofon'}`;
                 isRunning = true;
 
             } catch (err) {
                 console.error("Fel vid start:", err);
                 statusMsg.textContent = "Fel: " + err.message;
-                alert("Kunde inte starta ljudet. Se till att headset är inkopplat och behörighet given.");
+                alert("Kunde inte starta ljudet. Kontrollera att ingen annan app använder micken.");
             }
         }
 
@@ -349,7 +357,6 @@
                 cancelAnimationFrame(animationId);
             }
             
-            // Rensa canvas
             canvasCtx.fillStyle = '#111';
             canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -359,7 +366,6 @@
             isRunning = false;
         }
 
-        // Knapphanterare
         btn.addEventListener('click', () => {
             if (isRunning) {
                 stopAudio();
@@ -368,7 +374,6 @@
             }
         });
 
-        // Volymhanterare
         volSlider.addEventListener('input', (e) => {
             const val = e.target.value;
             volValue.textContent = Math.round(val * 100) + "%";
@@ -377,19 +382,16 @@
             }
         });
 
-        // Uppdatera output om man byter i listan medan det körs
         outputSelect.addEventListener('change', async (e) => {
             if (isRunning && 'setSinkId' in audioPlayer) {
                 try {
                     await audioPlayer.setSinkId(e.target.value);
-                    statusMsg.textContent = "Bytte output-enhet.";
                 } catch(err) {
                     console.error("Kunde inte byta output", err);
                 }
             }
         });
 
-        // Visualiseringsfunktion (Vågor)
         function visualize() {
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
@@ -427,10 +429,7 @@
             draw();
         }
 
-        // Ladda enheter vid start (kan kräva ett klick på sidan först i vissa webbläsare)
         window.addEventListener('load', () => {
-            // Vi väntar på ett klick var som helst för att ladda enheter om det misslyckas direkt
-            // då browsers blockerar enumerateDevices innan user interaction
             getDevices();
         });
 
