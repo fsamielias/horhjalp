@@ -2,186 +2,220 @@
 <html lang="sv">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hörselassistent</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hörselförstärkare</title>
     <style>
-        /* Custom styles for ranges/sliders */
-        input[type=range] {
-            -webkit-appearance: none;
-            width: 100%;
-            background: transparent;
+        /* Grundinställningar och Mörkt Tema för Samsung S22 */
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
         }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 24px;
-            width: 24px;
-            border-radius: 50%;
-            background: #4ade80; /* green-400 */
-            margin-top: -10px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.3);
-            cursor: pointer;
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #4da6ff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
-        input[type=range]::-webkit-slider-runnable-track {
+
+        /* Kort för kontroller */
+        .control-card {
+            background-color: #1e1e1e;
+            border-radius: 15px;
+            padding: 20px;
             width: 100%;
-            height: 4px;
-            cursor: pointer;
-            background: #4b5563; /* gray-600 */
-            border-radius: 2px;
+            max-width: 400px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: #aaaaaa;
+            font-weight: bold;
+        }
+
+        /* Dropdowns */
+        select {
+            width: 100%;
+            padding: 12px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #444;
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            outline: none;
+        }
+
+        select:focus {
+            border-color: #4da6ff;
+        }
+
+        /* Volymslider */
+        .slider-container {
+            margin-top: 10px;
         }
         
-        .visualizer-container {
-            position: relative;
-            height: 100px;
+        input[type=range] {
             width: 100%;
-            background-color: #111827;
-            border-radius: 0.5rem;
-            overflow: hidden;
-            margin-bottom: 1rem;
-            border: 1px solid #374151;
+            height: 8px;
+            background: #444;
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
         }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #4da6ff;
+            cursor: pointer;
+            border: 2px solid #fff;
+        }
+
+        .vol-label {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 0.8rem;
+        }
+
+        /* Start/Stopp Knapp */
+        #toggleBtn {
+            width: 100%;
+            padding: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-start {
+            background-color: #28a745;
+            color: white;
+            box-shadow: 0 0 15px rgba(40, 167, 69, 0.4);
+        }
+
+        .btn-stop {
+            background-color: #dc3545;
+            color: white;
+            box-shadow: 0 0 15px rgba(220, 53, 69, 0.4);
+        }
+
+        /* Visualizer Canvas */
         canvas {
             width: 100%;
-            height: 100%;
+            height: 80px;
+            background-color: #111;
+            border-radius: 10px;
+            margin-top: 20px;
+            border: 1px solid #333;
+        }
+
+        /* Info text */
+        .status-text {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 10px;
+            text-align: center;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans min-h-screen flex flex-col items-center justify-center p-4">
+<body>
 
-    <!-- Main Container -->
-    <div class="w-full max-w-md bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-gray-700">
-        
-        <!-- Header -->
-        <div class="bg-gray-900 p-6 text-center border-b border-gray-700">
-            <h1 class="text-2xl font-bold text-green-400"><i class="fas fa-ear-listen mr-2"></i>Hörselassistent</h1>
-            <p class="text-gray-400 text-sm mt-1">Ljudförstärkning & Routing</p>
-        </div>
+    <h1>Hörselförstärkare</h1>
 
-        <div class="p-6 space-y-6">
+    <div class="control-card">
+        <label for="audioInput">1. Välj Mikrofon (Input)</label>
+        <select id="audioInput">
+            <option value="" disabled selected>Laddar enheter...</option>
+        </select>
 
-            <!-- Status Indicator -->
-            <div id="statusMessage" class="text-center text-sm p-3 rounded-lg bg-gray-700 text-gray-300">
-                Redo att starta. Koppla in hörlurar för att undvika rundgång!
+        <label for="audioOutput">2. Välj Hörlurar (Output)</label>
+        <select id="audioOutput">
+            <option value="" disabled selected>Laddar enheter...</option>
+        </select>
+    </div>
+
+    <div class="control-card">
+        <label for="volumeSlider">3. Volym & Förstärkning</label>
+        <div class="slider-container">
+            <input type="range" id="volumeSlider" min="0" max="5" step="0.1" value="1">
+            <div class="vol-label">
+                <span>0%</span>
+                <span id="volValue">100%</span>
+                <span>500%</span>
             </div>
-
-            <!-- Visualizer -->
-            <div class="visualizer-container">
-                <canvas id="visualizer"></canvas>
-            </div>
-
-            <!-- Controls -->
-            <div class="space-y-4">
-                
-                <!-- Input Selection -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">
-                        <i class="fas fa-microphone mr-2"></i>Mikrofon (Input)
-                    </label>
-                    <select id="audioInputSelect" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-white focus:outline-none focus:border-green-500 transition-colors">
-                        <option value="" disabled selected>Laddar enheter...</option>
-                    </select>
-                </div>
-
-                <!-- Output Selection (Chrome/Edge only mainly) -->
-                <div id="outputContainer">
-                    <label class="block text-sm font-medium text-gray-400 mb-1">
-                        <i class="fas fa-headphones mr-2"></i>Hörlurar (Output)
-                    </label>
-                    <select id="audioOutputSelect" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-white focus:outline-none focus:border-green-500 transition-colors">
-                        <option value="" disabled selected>Laddar enheter...</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1 italic" id="outputWarning">
-                        Obs: Vissa webbläsare (t.ex. Safari iOS) tillåter inte val av output här. Använd systeminställningarna.
-                    </p>
-                </div>
-
-                <!-- Volume/Gain Slider -->
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label class="block text-sm font-medium text-gray-400">
-                            <i class="fas fa-volume-up mr-2"></i>Förstärkning
-                        </label>
-                        <span id="gainValue" class="text-green-400 font-mono">1.0x</span>
-                    </div>
-                    <input type="range" id="gainSlider" min="0" max="5" step="0.1" value="1" class="w-full">
-                </div>
-
-                 <!-- Wake Lock Toggle -->
-                 <div class="flex items-center justify-between bg-gray-900 p-3 rounded-lg border border-gray-700">
-                    <div class="text-sm text-gray-300">
-                        <i class="fas fa-lock-open mr-2"></i>Håll skärmen vaken
-                    </div>
-                    <div id="wakeLockStatus" class="w-3 h-3 rounded-full bg-red-500 shadow-md"></div>
-                </div>
-
-            </div>
-
-            <!-- Action Button -->
-            <button id="toggleBtn" class="w-full py-4 px-6 rounded-xl font-bold text-lg shadow-lg transform transition-all active:scale-95 bg-green-600 hover:bg-green-500 text-white">
-                <i class="fas fa-power-off mr-2"></i>Starta Ljud
-            </button>
-
         </div>
     </div>
 
-    <!-- Invisible Audio Element for Output Routing -->
-    <audio id="audioElement" autoplay playsinline></audio>
+    <!-- Canvas för att se ljudvågor -->
+    <canvas id="visualizer"></canvas>
+
+    <button id="toggleBtn" class="btn-start">Starta Lyssning</button>
+    <p class="status-text" id="statusMessage">Redo att starta</p>
+
+    <!-- Dold audio tagg för routing av output -->
+    <audio id="audioPlayer" autoplay playsinline></audio>
 
     <script>
-        // State variables
-        let audioContext = null;
-        let mediaStreamSource = null;
-        let gainNode = null;
-        let currentStream = null;
+        // Variabler för Web Audio API
+        let audioContext;
+        let mediaStream;
+        let sourceNode;
+        let gainNode;
+        let analyser;
         let isRunning = false;
-        let wakeLock = null;
-        let animationId = null;
+        let filterNode;
+        let compressorNode;
+        let animationId;
+        let streamDestination;
 
-        // DOM Elements
-        const toggleBtn = document.getElementById('toggleBtn');
-        const inputSelect = document.getElementById('audioInputSelect');
-        const outputSelect = document.getElementById('audioOutputSelect');
-        const gainSlider = document.getElementById('gainSlider');
-        const gainValue = document.getElementById('gainValue');
-        const statusMsg = document.getElementById('statusMessage');
-        const audioElement = document.getElementById('audioElement');
-        const wakeLockStatus = document.getElementById('wakeLockStatus');
+        // HTML Element
+        const btn = document.getElementById('toggleBtn');
+        const inputSelect = document.getElementById('audioInput');
+        const outputSelect = document.getElementById('audioOutput');
+        const volSlider = document.getElementById('volumeSlider');
+        const volValue = document.getElementById('volValue');
         const canvas = document.getElementById('visualizer');
         const canvasCtx = canvas.getContext('2d');
+        const statusMsg = document.getElementById('statusMessage');
+        const audioPlayer = document.getElementById('audioPlayer');
 
-        // Initial Setup
-        async function init() {
-            try {
-                // Request permission first to populate labels correctly
-                await navigator.mediaDevices.getUserMedia({ audio: true });
-                updateStatus("Behörighet beviljad. Välj enheter.", "text-gray-300");
-                await getDevices();
-                
-                // Monitor device changes (plugging in headphones etc)
-                navigator.mediaDevices.ondevicechange = getDevices;
+        // Initiera canvas storlek
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
 
-                // Check audio output support
-                if (!('sinkId' in HTMLMediaElement.prototype)) {
-                    document.getElementById('outputWarning').innerText = "Din webbläsare stödjer inte val av output här. Ljudet spelas upp i systemets standardenhet.";
-                    outputSelect.disabled = true;
-                }
-
-            } catch (err) {
-                updateStatus("Kunde inte få åtkomst till mikrofonen: " + err.message, "text-red-400");
-            }
-        }
-
-        // Fetch Input/Output devices
+        // 1. Hämta lista på enheter (Mickar och Högtalare)
         async function getDevices() {
             try {
+                // Vi måste be om tillåtelse först för att se etiketter (namn) på enheterna
+                await navigator.mediaDevices.getUserMedia({ audio: true });
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 
-                // Clear existing options
-                const currentInput = inputSelect.value;
-                const currentOutput = outputSelect.value;
                 inputSelect.innerHTML = '';
                 outputSelect.innerHTML = '';
+
+                let hasOutputSelection = false;
 
                 devices.forEach(device => {
                     const option = document.createElement('option');
@@ -192,242 +226,213 @@
                         inputSelect.appendChild(option);
                     } else if (device.kind === 'audiooutput') {
                         outputSelect.appendChild(option);
+                        hasOutputSelection = true;
                     }
                 });
 
-                // Restore selection if possible, otherwise select first/default
-                if (currentInput && [...inputSelect.options].some(o => o.value === currentInput)) {
-                    inputSelect.value = currentInput;
-                }
-                if (currentOutput && [...outputSelect.options].some(o => o.value === currentOutput)) {
-                    outputSelect.value = currentOutput;
+                // Om webbläsaren inte stödjer val av output (vissa mobila webbläsare döljer detta)
+                if (!hasOutputSelection) {
+                    const opt = document.createElement('option');
+                    opt.text = "Systemstandard (Använd telefoninställningar)";
+                    outputSelect.appendChild(opt);
+                    outputSelect.disabled = true;
                 }
 
+                statusMsg.textContent = "Enheter laddade. Välj mick och tryck Start.";
+
             } catch (err) {
-                console.error("Error fetching devices:", err);
+                console.error(err);
+                statusMsg.textContent = "Kunde inte hämta enheter. Se till att ge tillåtelse.";
             }
         }
 
-        // Toggle Audio Processing
-        async function toggleAudio() {
+        // 2. Starta ljudströmmen
+        async function startAudio() {
+            const inputDeviceId = inputSelect.value;
+            const outputDeviceId = outputSelect.value;
+
+            if (!inputDeviceId) {
+                alert("Vänligen välj en mikrofon först.");
+                return;
+            }
+
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Hämta ljud från vald mick med låg latency inställning
+                const constraints = {
+                    audio: {
+                        deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
+                        echoCancellation: false, // Stäng av om vi vill ha rå ljud
+                        noiseSuppression: false, // Vi hanterar filter själva för bättre kontroll
+                        autoGainControl: false,  // Vi hanterar volym själva
+                        latency: 0
+                    }
+                };
+
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                // Skapa Audio noder
+                sourceNode = audioContext.createMediaStreamSource(mediaStream);
+                
+                // A. High-pass filter (Tar bort buller/muller under 150Hz)
+                filterNode = audioContext.createBiquadFilter();
+                filterNode.type = 'highpass';
+                filterNode.frequency.value = 150; 
+                filterNode.Q.value = 0.7;
+
+                // B. Kompressor (Skyddar öronen mot plötsliga höga ljud)
+                compressorNode = audioContext.createDynamicsCompressor();
+                compressorNode.threshold.value = -20;
+                compressorNode.knee.value = 40;
+                compressorNode.ratio.value = 12;
+                compressorNode.attack.value = 0;
+                compressorNode.release.value = 0.25;
+
+                // C. Gain (Volymkontroll)
+                gainNode = audioContext.createGain();
+                gainNode.gain.value = volSlider.value;
+
+                // D. Analyser (För visualisering)
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+
+                // E. Destination för Web Audio API till HTML Audio Element
+                // Detta krävs för att kunna använda setSinkId (välja output)
+                streamDestination = audioContext.createMediaStreamDestination();
+
+                // Koppla ihop kedjan:
+                // Mick -> Filter -> Kompressor -> Volym -> Visualizer -> Destination
+                sourceNode.connect(filterNode);
+                filterNode.connect(compressorNode);
+                compressorNode.connect(gainNode);
+                gainNode.connect(analyser);
+                gainNode.connect(streamDestination);
+
+                // Koppla Web Audio destinationen till <audio> elementet
+                audioPlayer.srcObject = streamDestination.stream;
+
+                // Sätt output enhet (Hörlurar)
+                if (outputDeviceId && 'setSinkId' in audioPlayer) {
+                    await audioPlayer.setSinkId(outputDeviceId);
+                    console.log(`Output satt till ${outputDeviceId}`);
+                } else if (outputDeviceId) {
+                    console.warn("setSinkId stöds inte av denna webbläsare, ljudet går till systemstandard.");
+                }
+
+                await audioPlayer.play();
+
+                visualize(); // Starta visualisering
+                
+                // UI Uppdatering
+                btn.textContent = "Stoppa Lyssning";
+                btn.className = "btn-stop";
+                statusMsg.textContent = "Aktiv: Filtrerar och förstärker ljud...";
+                isRunning = true;
+
+            } catch (err) {
+                console.error("Fel vid start:", err);
+                statusMsg.textContent = "Fel: " + err.message;
+                alert("Kunde inte starta ljudet. Se till att headset är inkopplat och behörighet given.");
+            }
+        }
+
+        // 3. Stoppa ljudströmmen
+        function stopAudio() {
+            if (audioContext) {
+                audioContext.close();
+            }
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            
+            // Rensa canvas
+            canvasCtx.fillStyle = '#111';
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+            btn.textContent = "Starta Lyssning";
+            btn.className = "btn-start";
+            statusMsg.textContent = "Stoppad.";
+            isRunning = false;
+        }
+
+        // Knapphanterare
+        btn.addEventListener('click', () => {
             if (isRunning) {
                 stopAudio();
             } else {
                 startAudio();
             }
-        }
-
-        async function startAudio() {
-            const constraints = {
-                audio: {
-                    deviceId: inputSelect.value ? { exact: inputSelect.value } : undefined,
-                    echoCancellation: false, // Turn off for cleaner raw audio usually
-                    noiseSuppression: true, // Keep on to reduce background hum
-                    autoGainControl: false, // We handle gain manually
-                    latency: 0 // Attempt lowest latency
-                }
-            };
-
-            try {
-                updateStatus("Startar ljudmotor...", "text-yellow-400");
-                
-                // 1. Get Microphone Stream
-                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-
-                // 2. Initialize Audio Context
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    latencyHint: 'interactive'
-                });
-
-                // 3. Create Processing Nodes
-                mediaStreamSource = audioContext.createMediaStreamSource(currentStream);
-                gainNode = audioContext.createGain();
-                
-                // Apply current slider value
-                gainNode.gain.value = gainSlider.value;
-
-                // 4. Connect Graph: Mic -> Gain -> Destination (Speakers)
-                // Note: We use a MediaStreamDestination to route to the <audio> tag 
-                // because setSinkId works on HTML elements, not AudioContext directly in standard ways.
-                const destination = audioContext.createMediaStreamDestination();
-                mediaStreamSource.connect(gainNode);
-                gainNode.connect(destination);
-
-                // 5. Connect processed stream to the invisible <audio> element
-                audioElement.srcObject = destination.stream;
-                
-                // 6. Set Output Device (if supported)
-                if (outputSelect.value && 'sinkId' in audioElement) {
-                    await audioElement.setSinkId(outputSelect.value);
-                }
-                
-                await audioElement.play();
-
-                // 7. Visualizer
-                setupVisualizer();
-
-                // 8. Wake Lock
-                requestWakeLock();
-
-                // Update UI
-                toggleBtn.innerHTML = '<i class="fas fa-stop mr-2"></i>Stoppa Ljud';
-                toggleBtn.classList.remove('bg-green-600', 'hover:bg-green-500');
-                toggleBtn.classList.add('bg-red-600', 'hover:bg-red-500');
-                updateStatus("Aktiv: Lyssnar...", "text-green-400");
-                isRunning = true;
-
-            } catch (err) {
-                console.error(err);
-                updateStatus("Fel vid start: " + err.message, "text-red-400");
-                stopAudio();
-            }
-        }
-
-        function stopAudio() {
-            // Stop logic
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-            }
-            if (audioContext) {
-                audioContext.close();
-            }
-            if (wakeLock) {
-                wakeLock.release().then(() => {
-                    wakeLock = null;
-                    updateWakeLockUI(false);
-                });
-            }
-            
-            cancelAnimationFrame(animationId);
-            
-            // Clear canvas
-            canvasCtx.fillStyle = '#111827';
-            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Update UI
-            toggleBtn.innerHTML = '<i class="fas fa-power-off mr-2"></i>Starta Ljud';
-            toggleBtn.classList.remove('bg-red-600', 'hover:bg-red-500');
-            toggleBtn.classList.add('bg-green-600', 'hover:bg-green-500');
-            updateStatus("Stoppad.", "text-gray-300");
-            isRunning = false;
-        }
-
-        // Change Output Device while running
-        outputSelect.addEventListener('change', async () => {
-            if (isRunning && 'sinkId' in audioElement) {
-                try {
-                    await audioElement.setSinkId(outputSelect.value);
-                    updateStatus(`Output ändrad till: ${outputSelect.options[outputSelect.selectedIndex].text}`, "text-green-400");
-                } catch (err) {
-                    updateStatus("Kunde inte byta output: " + err.message, "text-red-400");
-                }
-            }
         });
 
-        // Restart audio if input device changes while running
-        inputSelect.addEventListener('change', () => {
-            if (isRunning) {
-                stopAudio();
-                setTimeout(startAudio, 500);
-            }
-        });
-
-        // Handle Gain Slider
-        gainSlider.addEventListener('input', (e) => {
+        // Volymhanterare
+        volSlider.addEventListener('input', (e) => {
             const val = e.target.value;
-            gainValue.innerText = val + "x";
+            volValue.textContent = Math.round(val * 100) + "%";
             if (gainNode) {
                 gainNode.gain.value = val;
             }
         });
 
-        // Screen Wake Lock API
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    updateWakeLockUI(true);
-                    
-                    wakeLock.addEventListener('release', () => {
-                        updateWakeLockUI(false);
-                        console.log('Wake Lock released');
-                    });
+        // Uppdatera output om man byter i listan medan det körs
+        outputSelect.addEventListener('change', async (e) => {
+            if (isRunning && 'setSinkId' in audioPlayer) {
+                try {
+                    await audioPlayer.setSinkId(e.target.value);
+                    statusMsg.textContent = "Bytte output-enhet.";
+                } catch(err) {
+                    console.error("Kunde inte byta output", err);
                 }
-            } catch (err) {
-                console.error(`Wake Lock failed: ${err.name}, ${err.message}`);
-            }
-        }
-
-        // Re-acquire wake lock if visibility changes (user switches tabs)
-        document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
-                await requestWakeLock();
             }
         });
 
-        function updateWakeLockUI(active) {
-            if (active) {
-                wakeLockStatus.classList.remove('bg-red-500');
-                wakeLockStatus.classList.add('bg-green-500', 'shadow-[0_0_10px_#22c55e]');
-            } else {
-                wakeLockStatus.classList.remove('bg-green-500', 'shadow-[0_0_10px_#22c55e]');
-                wakeLockStatus.classList.add('bg-red-500');
-            }
-        }
-
-        // Simple Audio Visualizer
-        function setupVisualizer() {
-            const analyser = audioContext.createAnalyser();
-            mediaStreamSource.connect(analyser); // Connect from source (pre-gain) to see raw input
-            // OR connect from gainNode to see boosted input: gainNode.connect(analyser);
-
-            analyser.fftSize = 256;
+        // Visualiseringsfunktion (Vågor)
+        function visualize() {
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
 
-            // Set canvas size dynamically
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-
             function draw() {
                 animationId = requestAnimationFrame(draw);
+                analyser.getByteTimeDomainData(dataArray);
 
-                analyser.getByteFrequencyData(dataArray);
-
-                canvasCtx.fillStyle = '#111827';
+                canvasCtx.fillStyle = '#111';
                 canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
-                const barWidth = (canvas.width / bufferLength) * 2.5;
-                let barHeight;
+                canvasCtx.lineWidth = 2;
+                canvasCtx.strokeStyle = '#4da6ff';
+                canvasCtx.beginPath();
+
+                const sliceWidth = canvas.width * 1.0 / bufferLength;
                 let x = 0;
 
-                for(let i = 0; i < bufferLength; i++) {
-                    barHeight = dataArray[i] / 2; // scale down slightly
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = dataArray[i] / 128.0;
+                    const y = v * canvas.height / 2;
 
-                    // Color based on volume
-                    const r = barHeight + 25 * (i/bufferLength);
-                    const g = 250 * (i/bufferLength);
-                    const b = 50;
+                    if (i === 0) {
+                        canvasCtx.moveTo(x, y);
+                    } else {
+                        canvasCtx.lineTo(x, y);
+                    }
 
-                    canvasCtx.fillStyle = `rgb(${r},${g},${b})`;
-                    canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-
-                    x += barWidth + 1;
+                    x += sliceWidth;
                 }
+
+                canvasCtx.lineTo(canvas.width, canvas.height / 2);
+                canvasCtx.stroke();
             }
             draw();
         }
 
-        function updateStatus(msg, colorClass) {
-            statusMsg.innerText = msg;
-            statusMsg.className = `text-center text-sm p-3 rounded-lg bg-gray-700 ${colorClass} transition-all`;
-        }
-
-        // Event Listeners
-        toggleBtn.addEventListener('click', toggleAudio);
-        
-        // Run init on load
-        window.addEventListener('load', init);
+        // Ladda enheter vid start (kan kräva ett klick på sidan först i vissa webbläsare)
+        window.addEventListener('load', () => {
+            // Vi väntar på ett klick var som helst för att ladda enheter om det misslyckas direkt
+            // då browsers blockerar enumerateDevices innan user interaction
+            getDevices();
+        });
 
     </script>
 </body>
